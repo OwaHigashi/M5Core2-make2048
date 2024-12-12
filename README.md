@@ -1,38 +1,24 @@
 # 2048_M5Stack
-"2048" is a simple and nice game of open source!
+## M5Core2ライブラリプロジェクト
+M5Core2のSD-Updaterを用いたライブラリ集を構築するプロジェクトの一環として実装されています。
 
-https://github.com/gabrielecirulli/2048  
-https://github.com/yangshun/2048-python  
+## どんなゲーム
 
+「2048」はオープンソースのシンプルで楽しいゲームです！
 
-This is customized for playing M5Stack!  
+以下のM5Stack用プログラムを参考に、M5Core2に移植しています。
 
-Using MPU9250 sensor,you should hold your M5Stack horizontally with the ground :)  
+https://github.com/gabrielecirulli/2048 
+https://github.com/yangshun/2048-python 
 
-Playing Movie:  
-https://youtu.be/ccEq0s7dU84  
+オリジナルはMPU9250センサーを使用しており、M5Stackを地面に対して水平に保持することとしていました。
+この判定条件を調整し、より遊びやすくしています。
 
-You can use "M5Stack-SD-Updater". so that, you could install .bin,.json,.jpeg files to your SD Card.  
+## M5Stack-SD-Updater対応です
 
-https://github.com/tobozo/M5Stack-SD-Updater  
-https://github.com/lovyan03/M5Stack_LovyanLauncher  
+https://github.com/tobozo/M5Stack-SD-Updater 
+https://github.com/lovyan03/M5Stack_LovyanLauncher 
 
+# プログラマ
 
-## BUILD Info  
-<pre>
-PlatformIO  
-lib_deps =  
-  # Using a library name  
-  M5Stack  
-  M5Stack-SD-Updater  
-</pre>
-
-## history
-20190415  
-Marged with tobozo's pull request(SD_Updater std.layout)  
-Using MPU9230  
-animation arrow
-          
-20190414  
-first commit  
-
+尾和 東/ぽこちゃ技術枠
