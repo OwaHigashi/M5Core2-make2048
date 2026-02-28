@@ -49,16 +49,19 @@ public:
   void drawInitBoard();
   void drawPanel(int);
   int  appendTwo(void);
+  bool canMerge(void);
   void coveron(void);
   void reverse(void);
   void transparent(void);
   void marge(void);
-  void move(int);
+  bool move(int);
   void dispArrow(int, int);
   void changeArrow(int);
   void setArrow(int);
   int getDir(void){return this->m_dirArrow;}
   void animationArrow(void);
+  void drawPanelAt(int val, int px, int py);
+  void animateMove(int d, int prev[]);
   void gameEnd(int);
 };
 
@@ -114,6 +117,18 @@ void cls_gamebrd::drawPanel(int i){
   }
 }
 
+bool cls_gamebrd::canMerge(void){
+  for(int y = 0; y < 4; y++){
+    for(int x = 0; x < 4; x++){
+      int v = this->m_panel[y*4+x];
+      if(!v) return true;
+      if(x < 3 && v == this->m_panel[y*4+x+1]) return true;
+      if(y < 3 && v == this->m_panel[(y+1)*4+x]) return true;
+    }
+  }
+  return false;
+}
+
 int cls_gamebrd::appendTwo(void){
   int lst[PANELN];
   int count = 0;
@@ -126,7 +141,10 @@ int cls_gamebrd::appendTwo(void){
       lst[count++] = i;
     }
   }
-  if(!count){return GAMELOSE;}
+  if(!count){
+    if(!this->canMerge()) return GAMELOSE;
+    return 0;
+  }
   int n = lst[random(count)];
   this->m_panel[n] = 1;
   this->drawPanel(n);
@@ -185,7 +203,10 @@ void cls_gamebrd::marge(void){
 #define MOVE_DOWN 1
 #define MOVE_LEFT 2
 #define MOVE_RIGHT 3
-void cls_gamebrd::move(int d){
+bool cls_gamebrd::move(int d){
+  int prev[PANELN];
+  for(int i = 0; i < PANELN; i++){ prev[i] = this->m_panel[i]; }
+
   switch(d){
     case MOVE_UP:
       this->transparent();
@@ -213,9 +234,15 @@ void cls_gamebrd::move(int d){
       this->reverse();
       break;
   }
-  for(int i=0; i<PANELN; i++){
-    this->drawPanel(i);
+
+  bool changed = false;
+  for(int i = 0; i < PANELN; i++){
+    if(prev[i] != this->m_panel[i]){ changed = true; break; }
   }
+  if(changed){
+    this->animateMove(d, prev);
+  }
+  return changed;
 }
 
 const uint16_t ARROWFRCOLOR[] ={LIGHTGREY,YELLOW};
@@ -302,6 +329,67 @@ void cls_gamebrd::animationArrow(void){
     this->m_anmArrowTime = millis();
 }
 
+void cls_gamebrd::drawPanelAt(int val, int px, int py){
+  const char * numtxt[]={"0","2","4","8","16","32","64","128","256","512","1024","2048"};
+  if(val < 0 || val > 11) return;
+  M5.Lcd.fillRect(px, py, PANELSIZ, PANELSIZ, PNLCOLOR[val]);
+  if(val){
+    int fontid = 2;
+    M5.Lcd.setTextColor(NUMCOLOR[val]);
+    if(val < 10){fontid=4;}
+    int fontdy = (PANELSIZ - M5.Lcd.fontHeight(fontid))/2;
+    M5.Lcd.drawCentreString(numtxt[val], px + (PANELSIZ/2), py+fontdy, fontid);
+  }
+}
+
+#define ANM_FRAMES 4
+#define ANM_STEP ((PANELSIZ+BORDERSIZ)/ANM_FRAMES)  // 13px per frame
+#define ANM_DELAY 25
+void cls_gamebrd::animateMove(int d, int prev[]){
+  int dx = 0, dy = 0;
+  switch(d){
+    case MOVE_UP:    dy = -1; break;
+    case MOVE_DOWN:  dy =  1; break;
+    case MOVE_LEFT:  dx = -1; break;
+    case MOVE_RIGHT: dx =  1; break;
+  }
+
+  // Board area bounds (expanded to cover slide overflow)
+  int bx = this->m_panelpos[0].x;
+  int by = this->m_panelpos[0].y;
+  int bw = 4*(PANELSIZ+BORDERSIZ);
+  int bh = 4*(PANELSIZ+BORDERSIZ);
+  int cx = bx, cy = by, cw = bw, ch = bh;
+  if(dx < 0){ cx -= PANELSIZ; cw += PANELSIZ; }
+  if(dx > 0){ cw += PANELSIZ; }
+  if(dy < 0){ cy -= PANELSIZ; ch += PANELSIZ; }
+  if(dy > 0){ ch += PANELSIZ; }
+
+  for(int f = 1; f <= ANM_FRAMES; f++){
+    // Clear expanded area
+    M5.Lcd.fillRect(cx, cy, cw, ch, BGCOLOR);
+
+    // Draw each old tile at offset position
+    int offset = f * ANM_STEP;
+    for(int i = 0; i < PANELN; i++){
+      if(prev[i]){
+        int px = this->m_panelpos[i].x + dx * offset;
+        int py = this->m_panelpos[i].y + dy * offset;
+        // Clip to board area
+        if(px >= bx - PANELSIZ && px < bx + bw && py >= by - PANELSIZ && py < by + bh){
+          this->drawPanelAt(prev[i], px, py);
+        }
+      }
+    }
+    delay(ANM_DELAY);
+  }
+
+  // Draw final state
+  for(int i = 0; i < PANELN; i++){
+    this->drawPanel(i);
+  }
+}
+
 void cls_gamebrd::gameEnd(int sts){
   int i,y = 10;
   int color[] = {BLACK,RED};
@@ -349,6 +437,12 @@ cls_gyro::cls_gyro(){
 float accX = 0.0F;
 float accY = 0.0F;
 float accZ = 0.0F;
+
+// Flick detection
+bool touch_active = false;
+int touch_sx = 0, touch_sy = 0;
+int touch_ex = 0, touch_ey = 0;  // last known position while touching
+#define FLICK_THRESHOLD 50
  
 int cls_gyro::senseGyro(void){
   int dir = 0; 
@@ -415,8 +509,39 @@ void loop() {
         gamebrd->changeArrow(2);
     }
     if(M5.BtnB.wasPressed()){
-        gamebrd->move(gamebrd->getDir());
-        gamests = gamebrd->appendTwo();    
+        if(gamebrd->move(gamebrd->getDir())){
+            gamests = gamebrd->appendTwo();
+        }
+    }
+
+    // Flick detection on screen (y < 225 to avoid button area)
+    if(M5.Touch.points > 0 && M5.Touch.point[0].y < 225){
+      if(!touch_active){
+        touch_active = true;
+        touch_sx = M5.Touch.point[0].x;
+        touch_sy = M5.Touch.point[0].y;
+      }
+      // Always track last known position while touching
+      touch_ex = M5.Touch.point[0].x;
+      touch_ey = M5.Touch.point[0].y;
+    } else if(touch_active){
+      touch_active = false;
+      int fdx = touch_ex - touch_sx;
+      int fdy = touch_ey - touch_sy;
+      int absx = fdx < 0 ? -fdx : fdx;
+      int absy = fdy < 0 ? -fdy : fdy;
+      if(absx > FLICK_THRESHOLD || absy > FLICK_THRESHOLD){
+        int flickDir;
+        if(absx > absy){
+          flickDir = (fdx > 0) ? MOVE_RIGHT : MOVE_LEFT;
+        } else {
+          flickDir = (fdy > 0) ? MOVE_DOWN : MOVE_UP;
+        }
+        gamebrd->setArrow(flickDir);
+        if(gamebrd->move(flickDir)){
+          gamests = gamebrd->appendTwo();
+        }
+      }
     }
     gamebrd->animationArrow();
   }
